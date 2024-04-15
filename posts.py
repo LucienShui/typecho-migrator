@@ -1,6 +1,7 @@
 import pymysql.cursors
 import os
 import pandas as pd
+import json
 from datetime import datetime
 from pypinyin import lazy_pinyin
 import re
@@ -43,22 +44,30 @@ def main():
         axis=1
     )
 
-    for filename, title, date, categories, tags, content in df[
-        ['filename', 'title', 'created', 'category_list', 'tag_list', 'text']
+    for filename, title, created, modified, categories, tags, content, summary in df[
+        ['filename', 'title', 'created', 'modified', 'category_list', 'tag_list', 'text', 'summary']
     ].iloc:
-        y, m, d = date[:4], date[5:7], date[8:10]
+        y, m, d = created[:4], created[5:7], created[8:10]
         dirname = os.path.join(OUTPUT_DIR, y, m, d)
         os.system(f'mkdir -p {dirname}')
+
+        body = [
+            "---",
+            f"title: {json.dumps(title, ensure_ascii=False)}",
+            f"date: {created} +0800",
+            f"last_modified_at: {modified} +0800",
+            f"math: {str('$' in content).lower()}",
+            f"render_with_liquid: false",
+            f"categories: [{', '.join(categories.split(','))}]",
+        ]
+        if tags:
+            body.append(f"tags: [{', '.join(tags.split(','))}]")
+        if summary:
+            body.append(f"description: {json.dumps(summary, ensure_ascii=False)}")
+        body.extend(['---', content])
+
         with open(os.path.join(dirname, filename), 'w') as f:
-            content = (f"""---
-title: "{title}"
-date: {date} +0800
-categories: [{', '.join(categories.split(','))}]
-tags: [{', '.join(tags.split(',')) if tags else ''}]
-math: {str('$' in content).lower()}
-render_with_liquid: false
----
-""" + content).replace('\r\n', '\n').replace('\n#', '\n##')
+            content = '\n'.join(body).replace('\r\n', '\n').replace('\n#', '\n##')
             f.write(content)
 
 

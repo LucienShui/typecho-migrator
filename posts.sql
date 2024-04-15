@@ -10,6 +10,11 @@ post_table AS (
     FROM typecho_contents
     WHERE `type` = 'post'
 ),
+cid_to_summary AS (
+    SELECT cid, str_value AS summary
+    FROM typecho_fields
+    WHERE `name` = 'customSummary'
+),
 cid_mid_relation_table AS (
     SELECT cid, mid
     FROM typecho_relationships
@@ -89,10 +94,13 @@ unique_cid_to_category AS (
 )
 SELECT post_table.*,
        unique_cid_to_category.display_name AS category_list,
-       cid_to_tag_list_table.tag_list
+       cid_to_tag_list_table.tag_list,
+       cid_to_summary.summary
 FROM post_table
 LEFT OUTER JOIN unique_cid_to_category
 ON post_table.cid = unique_cid_to_category.cid
 LEFT OUTER JOIN cid_to_tag_list_table
 ON post_table.cid = cid_to_tag_list_table.cid
+LEFT OUTER JOIN cid_to_summary
+ON post_table.cid = cid_to_summary.cid
 ;
