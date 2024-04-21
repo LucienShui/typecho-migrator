@@ -72,16 +72,10 @@ def main():
             body.append(f"tags: {json.dumps(tags, ensure_ascii=False).lower()}")
         if summary:
             body.append(f"description: {json.dumps(summary, ensure_ascii=False)}")
-        body.extend(['---', content])
-
-        content = '\n'.join(body).replace('\r\n', '\n')
-        if header_pattern.findall(content):
-            content = header_pattern.sub(r'\1 \2', content)
-        if '\n# ' in content:
-            content = content.replace('\n#', '\n##')
 
         if attachment_list:
             img_dir = os.path.join(IMG_DIR, y, m, d, filename)
+            body.append(f"img_path: /{img_dir}/")
             os.system(f'mkdir -p {img_dir}')
 
             for serialized_data, order in attachment_list:
@@ -95,7 +89,15 @@ def main():
                     with open(img_dst_path, 'wb') as f:
                         f.write(get(f'https://blog.lucien.ink/{img_src_path}').content)
                 for prefix in ['www.', 'blog.', '']:
-                    content = content.replace(f'https://{prefix}lucien.ink{img_src_path}', img_dst_path)
+                    content = content.replace(f'https://{prefix}lucien.ink{img_src_path}', img_name)
+
+        body.extend(['---', '', content])
+
+        content = '\n'.join(body).replace('\r\n', '\n')
+        if header_pattern.findall(content):
+            content = header_pattern.sub(r'\1 \2', content)
+        if '\n# ' in content:
+            content = content.replace('\n#', '\n##')
 
         with open(os.path.join(post_dir, filename + '.md'), 'w') as f:
             f.write(content)
