@@ -11,7 +11,9 @@ post_table AS (
     WHERE `type` = 'post'
 ),
 cid_to_attachment AS (
-    SELECT parent AS cid, CONCAT_WS('##', CONCAT(text, '@@', `order`)) AS attachment_list
+    SELECT parent AS cid,
+           GROUP_CONCAT(CONCAT(text, '@@', `order`) SEPARATOR '##') AS attachment_list,
+           COUNT(1) AS attachment_cnt
     FROM typecho_contents
     WHERE `type` = 'attachment'
     GROUP BY parent
@@ -38,7 +40,7 @@ cid_to_tag_table AS (
     ON cid_mid_relation_table.mid = tag_table.mid
 ),
 cid_to_tag_list_table AS (
-    SELECT cid, CONCAT_WS(',', display_name) AS tag_list
+    SELECT cid, GROUP_CONCAT(display_name SEPARATOR ',') AS tag_list
     FROM cid_to_tag_table
     GROUP BY cid
 ),
@@ -102,7 +104,8 @@ SELECT post_table.*,
        unique_cid_to_category.display_name AS category_list,
        cid_to_tag_list_table.tag_list,
        cid_to_summary.summary,
-       cid_to_attachment.attachment_list
+       cid_to_attachment.attachment_list,
+       cid_to_attachment.attachment_cnt
 FROM post_table
 LEFT OUTER JOIN unique_cid_to_category
 ON post_table.cid = unique_cid_to_category.cid

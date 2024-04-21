@@ -10,10 +10,11 @@ import re
 import phpserialize
 
 POSTS_DIR = '_posts'
-IMG_DIR = 'img'
+IMG_DIR = 'assets/img/posts'
 
-non_alpha_pattern = re.compile(r'[^a-zA-Z0-9]')
+non_alpha_pattern = re.compile(r'[^a-zA-Z0-9.]')
 continuous_under_line = re.compile(r'_+')
+header_pattern = re.compile(r'(\n#+)([^\s#])')
 
 
 def zh_to_en(name: str) -> str:
@@ -22,7 +23,6 @@ def zh_to_en(name: str) -> str:
 
 
 def main():
-    # 连接到数据库
     connection = pymysql.connect(host=os.environ['HOST'],
                                  user=os.environ['USER'],
                                  port=int(os.getenv('PORT', 3306)),
@@ -32,18 +32,14 @@ def main():
 
     with connection:
         with connection.cursor() as cursor:
-            # 执行SQL查询
             with open('posts.sql') as f:
                 sql = f.read()
 
             cursor.execute(sql)
 
-            # 获取查询结果
             result = cursor.fetchall()
             df = pd.DataFrame(result)
 
-        # 必要时此处可以提交事务
-        # connection.commit()
     for col in ['created', 'modified']:
         df.loc[:, col] = df[col].map(lambda x: datetime.fromtimestamp(x).strftime('%Y-%m-%d %H:%M:%S'))
 
@@ -78,16 +74,19 @@ def main():
             body.append(f"description: {json.dumps(summary, ensure_ascii=False)}")
         body.extend(['---', content])
 
-        content = '\n'.join(body).replace('\r\n', '\n').replace('\n#', '\n##')
+        content = '\n'.join(body).replace('\r\n', '\n')
+        if header_pattern.findall(content):
+            content = header_pattern.sub(r'\1 \2', content)
+        if '\n# ' in content:
+            content = content.replace('\n#', '\n##')
 
-        attachment_list = []
         if attachment_list:
             img_dir = os.path.join(IMG_DIR, y, m, d, filename)
             os.system(f'mkdir -p {img_dir}')
 
             for serialized_data, order in attachment_list:
                 data = phpserialize.loads(serialized_data.encode('utf-8'), decode_strings=True)
-                img_name = data['name']
+                img_name = zh_to_en(data['name'])
                 img_src_path = data['path']
                 img_dst_path = os.path.join(img_dir, img_name)
                 if os.path.exists(img_local_src_path := img_src_path.strip('/')):
@@ -95,8 +94,8 @@ def main():
                 else:
                     with open(img_dst_path, 'wb') as f:
                         f.write(get(f'https://blog.lucien.ink/{img_src_path}').content)
-                for prefix in ['www', 'blog']:
-                    content.replace(f'https://{prefix}.lucien.ink{img_src_path}', img_dst_path)
+                for prefix in ['www.', 'blog.', '']:
+                    content = content.replace(f'https://{prefix}lucien.ink{img_src_path}', img_dst_path)
 
         with open(os.path.join(post_dir, filename + '.md'), 'w') as f:
             f.write(content)
