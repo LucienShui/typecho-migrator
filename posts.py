@@ -1,18 +1,27 @@
 import pymysql.cursors
+import shutil
 import os
 import pandas as pd
 import json
 from datetime import datetime
 from pypinyin import lazy_pinyin
+from requests.api import get
 import re
+import phpserialize
 
-OUTPUT_DIR = '_posts'
+POSTS_DIR = '_posts'
+IMG_DIR = 'img'
+
+non_alpha_pattern = re.compile(r'[^a-zA-Z0-9]')
+continuous_under_line = re.compile(r'_+')
+
+
+def zh_to_en(name: str) -> str:
+    return continuous_under_line.sub('_', non_alpha_pattern.sub(
+        '_', '_'.join(lazy_pinyin(name.replace(' ', ''))).lower()))
 
 
 def main():
-    non_alpha_pattern = re.compile(r'[^a-zA-Z0-9]')
-    continuous_under_line = re.compile(r'_+')
-
     # 连接到数据库
     connection = pymysql.connect(host=os.environ['HOST'],
                                  user=os.environ['USER'],
@@ -38,18 +47,21 @@ def main():
     for col in ['created', 'modified']:
         df.loc[:, col] = df[col].map(lambda x: datetime.fromtimestamp(x).strftime('%Y-%m-%d %H:%M:%S'))
 
-    df.loc[:, 'filename'] = df.apply(
-        lambda row: row['created'][:10] + '-' + continuous_under_line.sub('_', non_alpha_pattern.sub(
-            '_', '_'.join(lazy_pinyin(row['title'].replace(' ', ''))).lower())) + '.md',
-        axis=1
+    for col in ['tag_list', 'category_list']:
+        df.loc[:, col] = df[col].map(lambda x: (x or '').split(','))
+
+    df.loc[:, 'attachment_list'] = df['attachment_list'].map(
+        lambda x: [each.split('@@') for each in x.split('##')] if x else []
     )
 
-    for filename, title, created, modified, categories, tags, content, summary in df[
-        ['filename', 'title', 'created', 'modified', 'category_list', 'tag_list', 'text', 'summary']
+    df.loc[:, 'filename'] = df.apply(lambda row: row['created'][:10] + '-' + zh_to_en(row['title']), axis=1)
+
+    for filename, title, created, modified, categories, tags, content, summary, attachment_list in df[
+        ['filename', 'title', 'created', 'modified', 'category_list', 'tag_list', 'text', 'summary', 'attachment_list']
     ].iloc:
         y, m, d = created[:4], created[5:7], created[8:10]
-        dirname = os.path.join(OUTPUT_DIR, y, m, d)
-        os.system(f'mkdir -p {dirname}')
+        post_dir = os.path.join(POSTS_DIR, y, m, d)
+        os.system(f'mkdir -p {post_dir}')
 
         body = [
             "---",
@@ -58,16 +70,35 @@ def main():
             f"last_modified_at: {modified} +0800",
             f"math: {str('$' in content).lower()}",
             f"render_with_liquid: false",
-            f"categories: [{', '.join(categories.split(','))}]",
+            f"categories: {json.dumps(categories, ensure_ascii=False)}",
         ]
         if tags:
-            body.append(f"tags: [{', '.join(tags.split(','))}]")
+            body.append(f"tags: {json.dumps(categories, ensure_ascii=False)}")
         if summary:
             body.append(f"description: {json.dumps(summary, ensure_ascii=False)}")
         body.extend(['---', content])
 
-        with open(os.path.join(dirname, filename), 'w') as f:
-            content = '\n'.join(body).replace('\r\n', '\n').replace('\n#', '\n##')
+        content = '\n'.join(body).replace('\r\n', '\n').replace('\n#', '\n##')
+
+        attachment_list = []
+        if attachment_list:
+            img_dir = os.path.join(IMG_DIR, y, m, d, filename)
+            os.system(f'mkdir -p {img_dir}')
+
+            for serialized_data, order in attachment_list:
+                data = phpserialize.loads(serialized_data.encode('utf-8'), decode_strings=True)
+                img_name = data['name']
+                img_src_path = data['path']
+                img_dst_path = os.path.join(img_dir, img_name)
+                if os.path.exists(img_local_src_path := img_src_path.strip('/')):
+                    shutil.copy(img_local_src_path, img_dst_path)
+                else:
+                    with open(img_dst_path, 'wb') as f:
+                        f.write(get(f'https://blog.lucien.ink/{img_src_path}').content)
+                for prefix in ['www', 'blog']:
+                    content.replace(f'https://{prefix}.lucien.ink{img_src_path}', img_dst_path)
+
+        with open(os.path.join(post_dir, filename + '.md'), 'w') as f:
             f.write(content)
 
 
