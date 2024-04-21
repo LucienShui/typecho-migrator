@@ -68,8 +68,8 @@ def main():
             f"render_with_liquid: false",
             f"categories: {json.dumps(categories, ensure_ascii=False)}",
         ]
-        if tags:
-            body.append(f"tags: {json.dumps(categories, ensure_ascii=False)}")
+        if ''.join(tags):
+            body.append(f"tags: {json.dumps(tags, ensure_ascii=False).lower()}")
         if summary:
             body.append(f"description: {json.dumps(summary, ensure_ascii=False)}")
         body.extend(['---', content])

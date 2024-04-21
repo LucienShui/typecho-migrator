@@ -2,3 +2,4 @@ phpserialize
 pandas
 pypinyin
 PyMySQL
+requests
