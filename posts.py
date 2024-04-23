@@ -99,6 +99,17 @@ def main():
         if '\n# ' in content:
             content = content.replace('\n#', '\n##')
 
+        # BEGIN fix some special case
+        for src, dst in [
+            ('120.78.164.53', 'blog.lucien.ink'),
+            ('http:/' + '/', 'https://'),
+            ('(microsoft-community)', '[microsoft-community]'),
+            ('(chaoji.ga)', '(https://chaoji.ga)'),
+            ('(how-to-delete)', '[how-to-delete]')
+        ]:
+            content = content.replace(src, dst)
+        # END
+
         with open(os.path.join(post_dir, filename + '.md'), 'w') as f:
             f.write(content)
 
