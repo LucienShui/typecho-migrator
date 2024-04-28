@@ -89,7 +89,7 @@ def main():
                     with open(img_dst_path, 'wb') as f:
                         f.write(get(f'https://blog.lucien.ink/{img_src_path}').content)
                 for prefix in ['www.', 'blog.', '']:
-                    content = content.replace(f'https://{prefix}lucien.ink{img_src_path}', img_name)
+                    content = content.replace(f'https://{prefix}lucien.ink{img_src_path}', img_dst_path)
 
         body.extend(['---', '', content])
 
